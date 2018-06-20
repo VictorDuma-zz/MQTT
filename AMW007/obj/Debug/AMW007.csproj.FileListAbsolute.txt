@@ -1,0 +1,11 @@
+c:\users\ghi\source\repos\AMW007\AMW007\bin\Debug\AMW007.exe
+c:\users\ghi\source\repos\AMW007\AMW007\bin\Debug\AMW007.pdb
+c:\users\ghi\source\repos\AMW007\AMW007\bin\Debug\GHIElectronics.TinyCLR.Devices.dll
+c:\users\ghi\source\repos\AMW007\AMW007\bin\Debug\GHIElectronics.TinyCLR.Pins.dll
+c:\users\ghi\source\repos\AMW007\AMW007\bin\Debug\GHIElectronics.TinyCLR.Storage.dll
+c:\users\ghi\source\repos\AMW007\AMW007\bin\Debug\mscorlib.dll
+c:\users\ghi\source\repos\AMW007\AMW007\obj\Debug\AMW007.csproj.CoreCompileInputs.cache
+c:\users\ghi\source\repos\AMW007\AMW007\obj\Debug\AMW007.csproj.CopyComplete
+c:\users\ghi\source\repos\AMW007\AMW007\obj\Debug\AMW007.exe
+c:\users\ghi\source\repos\AMW007\AMW007\obj\Debug\AMW007.pdb
+C:\Users\GHI\source\repos\AMW007\AMW007\obj\Debug\AMW007.csprojAssemblyReference.cache
