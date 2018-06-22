@@ -12,18 +12,16 @@ namespace AMW007 {
         private readonly SerialDevice serial;
         private DataWriter serWriter;
         private DataReader serReader;
-        private byte[] errorCode;
         private bool connected;
 
         public AMW007Interface(SerialDevice serial) {
             this.serial = serial;
-
          }
 
         public void Run() {
             serReader = new DataReader(serial.InputStream);
             serWriter = new DataWriter(serial.OutputStream);
-            Thread reader = new Thread(this.ReadSerial);
+            Thread reader = new Thread(this.ReadBytes);
             reader.Start(); 
         }
 
@@ -44,10 +42,8 @@ namespace AMW007 {
             if (command == null) {
                 throw new ArgumentNullException("command");
             }
-
             serWriter.WriteString(command + "\r\n");
             serWriter.Store();
-            Debug.WriteLine("Sent: " + command);
         }
 
         public void WriteData(string command, byte[] data) {
@@ -71,7 +67,6 @@ namespace AMW007 {
             Thread.Sleep(100);
             this.Write("tlsc " + host + " " + port); 
             while (connected == false) ;
-            Thread.Sleep(3000);
             Debug.WriteLine("Connected");
         }
 
@@ -90,77 +85,53 @@ namespace AMW007 {
 
             this.Write("read " + socket + " " + count);
             Thread.Sleep(500);
-            //ReadSerial();
-        }
 
-        private void ReadSerial()
-        {
-            connected = false;
-
-            while (true) {
-                Thread.Sleep(10);
-                var i = serReader.Load(1024);
-                if (i == 0) continue;
-                var response = serReader.ReadString(i);
-                response.ToString();
-                Debug.WriteLine(response);
-                if (response.IndexOf("R000003") != -1) {
-                    this.connected = true;
-                }
-
-            }
         }
 
         public void ReadBytes()
         {
-
             var builder = new StringBuilder();
-            const int length = 10;
-
+            const int length = 512;
             byte[] buffer = new byte[length];
-
-            var i = serReader.Load(length);
-
-            for (var j = 0; j < i; j++)
+            while (true)
             {
-
-                buffer[j] = serReader.ReadByte();
-                if (buffer[j] != 0)
+                Thread.Sleep(100);
+                var i = serReader.Load(length);
+                if (i != 0)
                 {
-                    char result = (char)buffer[j];
-                    builder.Append(result);
-                    Array.Clear(buffer, 0, j);
+                    for (var j = 0; j < i; j++)
+                    {
+                        buffer[j] = serReader.ReadByte();
+                        if (buffer[j] != 0)
+                        {
+                            char result = (char)buffer[j];
+                            builder.Append(result);
+                            Array.Clear(buffer, 0, j);
+                        }
+                    }
+
+                    if (builder.ToString().IndexOf("R000003") != -1)
+                        this.connected = true;
+
+                    //if (builder.ToString().IndexOf("R000000") == -1)
+                    Debug.WriteLine(builder.ToString());
+                    builder.Clear();
                 }
-
             }
-
-            Debug.WriteLine(builder.ToString());
+            
         }
 
-        private byte[] ReadErrorCode() {
-            errorCode = new byte[8];
-
-            serReader.Load(8);
-
-            for (var j = 0; j < errorCode.Length; j++) {
-                errorCode[j] = serReader.ReadByte();
-            }
-            BufferToString(errorCode);
-
-            return errorCode;
-        }
-
-        private void BufferToString(byte[] data) {
-
+        public byte [] ReadErrorCode() {
+            byte [] buffer = new byte[3];
             var builder = new StringBuilder();
+            serReader.Load(3);
 
-            for (var j = 0; j < data.Length; j++) {
-                char result = (char)data[j];
-                builder.Append(result);
+            for (var j = 0; j < buffer.Length; j++) {
+                buffer[j] = serReader.ReadByte();
             }
-
-            Debug.WriteLine(builder.ToString());
+            return buffer;
         }
+
 
         public void JoinNetwork(string ssid, string password) {
             this.Write("set wlan.ssid " + ssid);
@@ -168,8 +139,8 @@ namespace AMW007 {
             this.Write("set wlan.auto_join.enabled 1");
             this.Write("set system.print_level 1");
             this.Write("set system.cmd.header_enabled 1");
-            this.Write("set system.cmd.prompt_enabled 1");
-            this.Write("set system.cmd.echo on");
+            this.Write("set system.cmd.prompt_enabled 0");
+            this.Write("set system.cmd.echo off");
             this.Write("save");
             this.Write("reboot");
         }
