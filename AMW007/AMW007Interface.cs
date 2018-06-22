@@ -149,9 +149,10 @@ namespace AMW007 {
           
         }
 
-        public void SetTlsServerRootCertificate(byte[] certificate)
-        {
- 
+        public void SetTlsServerRootCertificate(string cert) {
+            this.Write("set network.tls.ca_cert " + cert);
+            this.Write("save");
+            
         }
 
     }

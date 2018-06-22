@@ -109,22 +109,18 @@ namespace AMW007 {
 
     class MQTT {
 
-        static AMW007Interface netif;
+        private AMW007Interface wifi;
 
-        public void Connect(SerialDevice serial, String clientID, int keepAlive, bool cleanSession, String username = null, String password = null)
-        {
+        public void Connect(AMW007Interface wifi, string host, int port, string clientID, int keepAlive, bool cleanSession, string username = null, string password = null) {
             int fixedHeaderSize = 0;
             int varHeaderSize = 0;
             int payloadSize = 0;
             int remainingLength = 0;
             byte[] MQTTbuffer;
             int index = 0;
+            this.wifi = wifi;
 
-            netif = new AMW007Interface(serial);
-            //netif.JoinNetwork("GHI", "ghi555wifi.");
-            netif.Run();
-
-            netif.OpenSocket("ghi-test-iot.azure-devices.net", 8883); //"192.168.1.152", 1883  "ghi-test-iot.azure-devices.net", 8883 "a1uyw4e5ps7wof.iot.us-east-2.amazonaws.com", 8883
+            wifi.OpenSocket(host, port); 
 
             byte[] clientIdUtf8 = Encoding.UTF8.GetBytes(clientID);
             byte[] usernameUtf8 = ((username != null) && (username.Length > 0)) ? Encoding.UTF8.GetBytes(username) : null;
@@ -184,8 +180,8 @@ namespace AMW007 {
             MQTTbuffer[index++] = connectFlags;
 
             // keep alive period 
-            MQTTbuffer[index++] = (byte)((keepAlive >> 8) & 0x00FF); // MSB 
-            MQTTbuffer[index++] = (byte)(keepAlive & 0x00FF); // LSB 
+            MQTTbuffer[index++] = (byte)(keepAlive / 256); // MSB 
+            MQTTbuffer[index++] = (byte)(keepAlive % 256); // LSB 
 
             // client identifier 
             MQTTbuffer[index++] = (byte)((clientIdUtf8.Length >> 8) & 0x00FF); // MSB 
@@ -195,23 +191,23 @@ namespace AMW007 {
 
             // username 
             if (usernameUtf8 != null) {
-                MQTTbuffer[index++] = (byte)((usernameUtf8.Length >> 8) & 0x00FF); // MSB 
-                MQTTbuffer[index++] = (byte)(usernameUtf8.Length & 0x00FF); // LSB 
+                MQTTbuffer[index++] = (byte)(usernameUtf8.Length / 256); // MSB 
+                MQTTbuffer[index++] = (byte)(usernameUtf8.Length % 256); // LSB 
                 Array.Copy(usernameUtf8, 0, MQTTbuffer, index, usernameUtf8.Length);
                 index += usernameUtf8.Length;
             }
 
             // password 
             if (passwordUtf8 != null) {
-                MQTTbuffer[index++] = (byte)((passwordUtf8.Length >> 8) & 0x00FF); // MSB 
-                MQTTbuffer[index++] = (byte)(passwordUtf8.Length & 0x00FF); // LSB 
+                MQTTbuffer[index++] = (byte)(passwordUtf8.Length / 256); // MSB 
+                MQTTbuffer[index++] = (byte)(passwordUtf8.Length % 256); // LSB 
                 Array.Copy(passwordUtf8, 0, MQTTbuffer, index, passwordUtf8.Length);
                 index += passwordUtf8.Length;
             }
 
-            netif.WriteSocket(0, MQTTbuffer, MQTTbuffer.Length);
+            wifi.WriteSocket(0, MQTTbuffer, MQTTbuffer.Length);
             Thread.Sleep(1000);
-            netif.ReadSocket(0, 1000);
+            wifi.ReadSocket(0, 1000);
 
         }
 
@@ -222,7 +218,7 @@ namespace AMW007 {
             int varHeader = 0;
             int payload = 0;
             int remainingLength = 0;
-            byte[] buffer = null;
+            byte[] MQTTbuffer = null;
 
             // Encode the topic
             byte[] utf8Topic = Encoding.UTF8.GetBytes(topic);
@@ -263,25 +259,25 @@ namespace AMW007 {
             // End of Fixed Header
 
             // Build buffer for message
-            buffer = new byte[fixedHeader + varHeader + payload];
+            MQTTbuffer = new byte[fixedHeader + varHeader + payload];
 
             // Start of Fixed header
             // Publish (3.3)
-            buffer[index++] = Constants.MQTT_PUBLISH_TYPE;
+            MQTTbuffer[index++] = Constants.MQTT_PUBLISH_TYPE;
 
             // Encode the fixed header remaining length
             // Add remaining length
-            index = encodeRemainingLength(remainingLength, buffer, index);
+            index = encodeRemainingLength(remainingLength, MQTTbuffer, index);
             // End Fixed Header
 
             // Start of Variable header
             // Length of topic name
-            buffer[index++] = (byte)(utf8Topic.Length / 256); // Length MSB
-            buffer[index++] = (byte)(utf8Topic.Length % 256); // Length LSB
+            MQTTbuffer[index++] = (byte)(utf8Topic.Length / 256); // Length MSB
+            MQTTbuffer[index++] = (byte)(utf8Topic.Length % 256); // Length LSB
             // Topic
             for (var i = 0; i < utf8Topic.Length; i++)
             {
-                buffer[index++] = utf8Topic[i];
+                MQTTbuffer[index++] = utf8Topic[i];
             }
             // End of variable header
 
@@ -289,13 +285,13 @@ namespace AMW007 {
             // Message (Length is accounted for in the fixed header)
             for (var i = 0; i < message.Length; i++)
             {
-                buffer[index++] = (byte)message[i];
+                MQTTbuffer[index++] = (byte)message[i];
             }
             // End of Payload
 
-            netif.WriteSocket(0, buffer, buffer.Length);
+            wifi.WriteSocket(0, MQTTbuffer, MQTTbuffer.Length);
             Thread.Sleep(1000);
-            netif.ReadSocket(0, 1000);
+            wifi.ReadSocket(0, 1000);
 
         }
 
@@ -304,7 +300,7 @@ namespace AMW007 {
             int varHeaderSize = 0;
             int payloadSize = 0;
             int remainingLength = 0;
-            byte[] buffer;
+            byte[] MQTTbuffer;
             int index = 0;
             int qosLevel = 0x01;
 
@@ -333,39 +329,38 @@ namespace AMW007 {
             int temp = remainingLength;
             // increase fixed header size based on remaining length
             // (each remaining length byte can encode until 128)
-            do
-            {
+            do {
                 fixedHeaderSize++;
                 temp = temp / 128;
             } while (temp > 0);
 
             // allocate buffer for message
-            buffer = new byte[fixedHeaderSize + varHeaderSize + payloadSize];
+            MQTTbuffer = new byte[fixedHeaderSize + varHeaderSize + payloadSize];
 
             // first fixed header byte
-            buffer[index++] = (Constants.MQTT_MSG_SUBSCRIBE_TYPE << Constants.MSG_TYPE_OFFSET) | Constants.MQTT_MSG_SUBSCRIBE_FLAG_BITS; 
+            MQTTbuffer[index++] = (Constants.MQTT_MSG_SUBSCRIBE_TYPE << Constants.MSG_TYPE_OFFSET) | Constants.MQTT_MSG_SUBSCRIBE_FLAG_BITS; 
 
             // encode remaining length
-            index = this.encodeRemainingLength(remainingLength, buffer, index);
+            index = this.encodeRemainingLength(remainingLength, MQTTbuffer, index);
 
             // check message identifier assigned (SUBSCRIBE uses QoS Level 1, so message id is mandatory)
             int messageId = 1;
-            buffer[index++] = (byte)((messageId >> 8) & 0x00FF); // MSB
-            buffer[index++] = (byte)(messageId & 0x00FF); // LSB 
+            MQTTbuffer[index++] = (byte)((messageId >> 8) & 0x00FF); // MSB
+            MQTTbuffer[index++] = (byte)(messageId & 0x00FF); // LSB 
 
-            buffer[index++] = (byte)((topicsUtf8.Length >> 8) & 0x00FF); // MSB
-            buffer[index++] = (byte)(topicsUtf8.Length & 0x00FF); // LSB
-            Array.Copy(topicsUtf8, 0, buffer, index, topicsUtf8.Length);
+            MQTTbuffer[index++] = (byte)((topicsUtf8.Length >> 8) & 0x00FF); // MSB
+            MQTTbuffer[index++] = (byte)(topicsUtf8.Length & 0x00FF); // LSB
+            Array.Copy(topicsUtf8, 0, MQTTbuffer, index, topicsUtf8.Length);
             index += topicsUtf8.Length;
 
             // requested QoS
-            buffer[index++] = (byte)qosLevel;
+            MQTTbuffer[index++] = (byte)qosLevel;
 
-            netif.WriteSocket(0, buffer, buffer.Length);
+            wifi.WriteSocket(0, MQTTbuffer, MQTTbuffer.Length);
             while (true)
             {
                 Thread.Sleep(500);
-                netif.ReadSocket(0, 1000);
+                wifi.ReadSocket(0, 1000);
             }
            
 
