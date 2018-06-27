@@ -6,14 +6,17 @@ using GHIElectronics.TinyCLR.Storage.Streams;
 using GHIElectronics.TinyCLR.Devices.SerialCommunication;
 using GHIElectronics.TinyCLR.Pins;
 using System.Diagnostics;
+using GHIElectronics.TinyCLR.Devices.Gpio;
+using System.IO;
 
 namespace AMW007 {
     public class AMW007Interface : IDisposable {
         private readonly SerialDevice serial;
+        public MemoryStream stream;
         private DataWriter serWriter;
         private DataReader serReader;
         private bool connected;
-
+ 
         public AMW007Interface(SerialDevice serial) {
             this.serial = serial;
          }
@@ -21,8 +24,10 @@ namespace AMW007 {
         public void Run() {
             serReader = new DataReader(serial.InputStream);
             serWriter = new DataWriter(serial.OutputStream);
+            this.stream = new MemoryStream();
+
             Thread reader = new Thread(this.ReadBytes);
-            reader.Start(); 
+            reader.Start();
         }
 
         ~AMW007Interface() => this.Dispose(false);
@@ -65,7 +70,7 @@ namespace AMW007 {
         public void OpenSocket(string host, int port) {
             this.Write("close all");
             Thread.Sleep(100);
-            this.Write("tlsc " + host + " " + port); 
+            this.Write("tlsc " + host + " " + port);
             while (connected == false) ;
             Debug.WriteLine("Connected");
         }
@@ -88,50 +93,44 @@ namespace AMW007 {
 
         }
 
+        public event MyHandler DataReceived;
+
+        public delegate void MyHandler(object sender, byte[] data, int length, int index);
+
         public void ReadBytes()
         {
             var builder = new StringBuilder();
-            const int length = 512;
+            const int length = 500;
             byte[] buffer = new byte[length];
+            int index = 0;
+
             while (true)
             {
                 Thread.Sleep(100);
+
                 var i = serReader.Load(length);
-                if (i != 0)
-                {
-                    for (var j = 0; j < i; j++)
-                    {
+                if (i != 0) {
+                    for (var j = 0; j < i; j++) {
                         buffer[j] = serReader.ReadByte();
-                        if (buffer[j] != 0)
-                        {
-                            char result = (char)buffer[j];
-                            builder.Append(result);
-                            Array.Clear(buffer, 0, j);
-                        }
+
+                        if (buffer[j] == 'R')
+                            index = j;
                     }
 
-                    if (builder.ToString().IndexOf("R000003") != -1)
+                    //R000003 - means socket is open.
+                    if (buffer[index + 6] == 51) {
                         this.connected = true;
+                    }
 
-                    //if (builder.ToString().IndexOf("R000000") == -1)
-                    Debug.WriteLine(builder.ToString());
-                    builder.Clear();
+                    // Amount of bytes
+                    if (buffer[index + 5] != 48) {
+                        DataReceived?.Invoke(this, buffer, length, index);
+                        Array.Clear(buffer, 0, length);
+                    }
+
                 }
             }
-            
         }
-
-        public byte [] ReadErrorCode() {
-            byte [] buffer = new byte[3];
-            var builder = new StringBuilder();
-            serReader.Load(3);
-
-            for (var j = 0; j < buffer.Length; j++) {
-                buffer[j] = serReader.ReadByte();
-            }
-            return buffer;
-        }
-
 
         public void JoinNetwork(string ssid, string password) {
             this.Write("set wlan.ssid " + ssid);
@@ -145,14 +144,10 @@ namespace AMW007 {
             this.Write("reboot");
         }
 
-        public void ClearTlsServerRootCertificate() {
-          
-        }
-
         public void SetTlsServerRootCertificate(string cert) {
             this.Write("set network.tls.ca_cert " + cert);
             this.Write("save");
-            
+            Thread.Sleep(500);
         }
 
     }

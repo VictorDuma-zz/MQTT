@@ -8,69 +8,29 @@ using GHIElectronics.TinyCLR.Pins;
 
 namespace AMW007 {
 
-    static class Constants
-    {
-
+    public abstract class Constants {
         internal const int MQTTPROTOCOLVERSION = 4;
         internal const int MAXLENGTH = 10240; // 10K
-        internal const int MAX_CLIENTID = 23;
-        internal const int MIN_CLIENTID = 1;
-        internal const int MAX_KEEPALIVE = 65535;
-        internal const int MIN_KEEPALIVE = 0;
-        internal const int MAX_USERNAME = 12;
-        internal const int MAX_PASSWORD = 12;
         internal const int MAX_TOPIC_LENGTH = 256;
         internal const int MIN_TOPIC_LENGTH = 1;
-        internal const int MAX_MESSAGEID = 65535;
         internal const byte MQTT_PUBLISH_TYPE = 0x30;
  
         internal const byte MESSAGE_ID_SIZE = 2;
         internal const byte MQTT_MSG_CONNECT_FLAG_BITS = 0x00;
-        internal const byte MQTT_MSG_CONNACK_FLAG_BITS = 0x00;
         internal const byte MQTT_MSG_PUBLISH_FLAG_BITS = 0x00; // just defined as 0x00 but depends on publish props (dup, qos, retain) 
-        internal const byte MQTT_MSG_PUBACK_FLAG_BITS = 0x00;
-        internal const byte MQTT_MSG_PUBREC_FLAG_BITS = 0x00;
-        internal const byte MQTT_MSG_PUBREL_FLAG_BITS = 0x02;
-        internal const byte MQTT_MSG_PUBCOMP_FLAG_BITS = 0x00;
         internal const byte MQTT_MSG_SUBSCRIBE_FLAG_BITS = 0x02;
-        internal const byte MQTT_MSG_SUBACK_FLAG_BITS = 0x00;
-        internal const byte MQTT_MSG_UNSUBSCRIBE_FLAG_BITS = 0x02;
-        internal const byte MQTT_MSG_UNSUBACK_FLAG_BITS = 0x00;
-        internal const byte MQTT_MSG_PINGREQ_FLAG_BITS = 0x00;
-        internal const byte MQTT_MSG_PINGRESP_FLAG_BITS = 0x00;
-        internal const byte MQTT_MSG_DISCONNECT_FLAG_BITS = 0x00;
+ 
         internal const byte MSG_TYPE_MASK = 0xF0;
         internal const byte MSG_TYPE_OFFSET = 0x04;
         internal const byte MSG_TYPE_SIZE = 0x04;
-        internal const byte MSG_FLAG_BITS_MASK = 0x0F;      // [v3.1.1]
-        internal const byte MSG_FLAG_BITS_OFFSET = 0x00;    // [v3.1.1]
-        internal const byte MSG_FLAG_BITS_SIZE = 0x04;      // [v3.1.1]
-        internal const byte DUP_FLAG_MASK = 0x08;
-        internal const byte DUP_FLAG_OFFSET = 0x03;
-        internal const byte DUP_FLAG_SIZE = 0x01;
+
         internal const byte QOS_LEVEL_MASK = 0x06;
         internal const byte QOS_LEVEL_OFFSET = 0x01;
         internal const byte QOS_LEVEL_SIZE = 0x02;
-        internal const byte RETAIN_FLAG_MASK = 0x01;
-        internal const byte RETAIN_FLAG_OFFSET = 0x00;
-        internal const byte RETAIN_FLAG_SIZE = 0x01;
         internal const byte MQTT_MSG_CONNECT_TYPE = 0x01;
-        internal const byte MQTT_MSG_CONNACK_TYPE = 0x02;
-        internal const byte MQTT_MSG_PUBLISH_TYPE = 0x03;
-        internal const byte MQTT_MSG_PUBACK_TYPE = 0x04;
-        internal const byte MQTT_MSG_PUBREC_TYPE = 0x05;
-        internal const byte MQTT_MSG_PUBREL_TYPE = 0x06;
-        internal const byte MQTT_MSG_PUBCOMP_TYPE = 0x07;
-        internal const byte MQTT_MSG_SUBSCRIBE_TYPE = 0x08;
-        internal const byte MQTT_MSG_SUBACK_TYPE = 0x09;
-        internal const byte MQTT_MSG_UNSUBSCRIBE_TYPE = 0x0A;
-        internal const byte MQTT_MSG_UNSUBACK_TYPE = 0x0B;
-        internal const byte MQTT_MSG_PINGREQ_TYPE = 0x0C;
-        internal const byte MQTT_MSG_PINGRESP_TYPE = 0x0D;
-        internal const byte MQTT_MSG_DISCONNECT_TYPE = 0x0E;
-        internal const string PROTOCOL_NAME_V3_1_1 = "MQTT";
 
-        internal const int CLIENT_ID_MAX_LENGTH = 23;
+        internal const byte MQTT_MSG_SUBSCRIBE_TYPE = 0x08;
+        internal const string PROTOCOL_NAME_V3_1_1 = "MQTT";
 
         // variable header fields
         internal const byte PROTOCOL_NAME_LEN_SIZE = 2;
@@ -84,27 +44,9 @@ namespace AMW007 {
         internal const ushort MAX_KEEP_ALIVE = 65535; 
 
         // connect flags
-        internal const byte USERNAME_FLAG_MASK = 0x80;
         internal const byte USERNAME_FLAG_OFFSET = 0x07;
-        internal const byte USERNAME_FLAG_SIZE = 0x01;
-        internal const byte PASSWORD_FLAG_MASK = 0x40;
         internal const byte PASSWORD_FLAG_OFFSET = 0x06;
-        internal const byte PASSWORD_FLAG_SIZE = 0x01;
-        internal const byte WILL_RETAIN_FLAG_MASK = 0x20;
-        internal const byte WILL_RETAIN_FLAG_OFFSET = 0x05;
-        internal const byte WILL_RETAIN_FLAG_SIZE = 0x01;
-        internal const byte WILL_QOS_FLAG_MASK = 0x18;
-        internal const byte WILL_QOS_FLAG_OFFSET = 0x03;
-        internal const byte WILL_QOS_FLAG_SIZE = 0x02;
-        internal const byte WILL_FLAG_MASK = 0x04;
-        internal const byte WILL_FLAG_OFFSET = 0x02;
-        internal const byte WILL_FLAG_SIZE = 0x01;
-        internal const byte CLEAN_SESSION_FLAG_MASK = 0x02;
         internal const byte CLEAN_SESSION_FLAG_OFFSET = 0x01;
-        internal const byte CLEAN_SESSION_FLAG_SIZE = 0x01;
-        internal const byte RESERVED_FLAG_MASK = 0x01;
-        internal const byte RESERVED_FLAG_OFFSET = 0x00;
-        internal const byte RESERVED_FLAG_SIZE = 0x01;
     }
 
     class MQTT {
@@ -251,8 +193,7 @@ namespace AMW007 {
 
             // Add space for each byte we need in the fixed header to store the length
             tmp = remainingLength;
-            while (tmp > 0)
-            {
+            while (tmp > 0) {
                 fixedHeader++;
                 tmp = tmp / 128;
             };
@@ -275,16 +216,14 @@ namespace AMW007 {
             MQTTbuffer[index++] = (byte)(utf8Topic.Length / 256); // Length MSB
             MQTTbuffer[index++] = (byte)(utf8Topic.Length % 256); // Length LSB
             // Topic
-            for (var i = 0; i < utf8Topic.Length; i++)
-            {
+            for (var i = 0; i < utf8Topic.Length; i++) {
                 MQTTbuffer[index++] = utf8Topic[i];
             }
             // End of variable header
 
             // Start of Payload
             // Message (Length is accounted for in the fixed header)
-            for (var i = 0; i < message.Length; i++)
-            {
+            for (var i = 0; i < message.Length; i++) {
                 MQTTbuffer[index++] = (byte)message[i];
             }
             // End of Payload
@@ -357,13 +296,6 @@ namespace AMW007 {
             MQTTbuffer[index++] = (byte)qosLevel;
 
             wifi.WriteSocket(0, MQTTbuffer, MQTTbuffer.Length);
-            while (true)
-            {
-                Thread.Sleep(500);
-                wifi.ReadSocket(0, 1000);
-            }
-           
-
         }
 
 
