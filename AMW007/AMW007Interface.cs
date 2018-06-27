@@ -68,14 +68,14 @@ namespace AMW007 {
         }
 
         public void OpenSocket(string host, int port) {
-            this.Write("close all");
+            CloseSocket();
             Thread.Sleep(100);
             this.Write("tlsc " + host + " " + port);
             while (connected == false) ;
             Debug.WriteLine("Connected");
         }
 
-        public void CloseSocket(int socket) {
+        public void CloseSocket() {
             this.Write("close all");
         }
 

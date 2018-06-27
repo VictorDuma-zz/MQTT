@@ -14,6 +14,7 @@ namespace AMW007 {
         static byte[] streamBuffer = new byte[512];
         private static GpioPin led;
         static StringBuilder builder = new StringBuilder();
+        static string clientID = "FEZ";
 
         static void Main() {
 
@@ -31,9 +32,11 @@ namespace AMW007 {
 
             mqtt = new MQTT();
             wifi.Run();
+
+            //wifi.JoinNetwork("GHI", "ghi555wifi.");
             //wifi.SetTlsServerRootCertificate("azure.pem"); //aws.pem
 
-            mqtt.Connect(wifi, host, port, "FEZ", 60, true);
+            mqtt.Connect(wifi, host, port, clientID, 60, true, "ghi-test-iot.azure-devices.net/FEZ", "SharedAccessSignature sr=ghi-test-iot.azure-devices.net%2Fdevices%2FFEZ&sig=9ZsecohsA3ZtlROML0BMAO%2BgTEBIigvy7Cj5q34RUFI%3D&se=1560446796"); //, "ghi-test-iot.azure-devices.net/FEZ", "SharedAccessSignature sr=ghi-test-iot.azure-devices.net%2Fdevices%2FFEZ&sig=9ZsecohsA3ZtlROML0BMAO%2BgTEBIigvy7Cj5q34RUFI%3D&se=1560446796"
             mqtt.Publish("devices/FEZ/messages/events/", "HELLO!"); //devices/FEZ/messages/events/    $aws/things/FEZ/shadow/update
 
             mqtt.Subscribe("devices/FEZ/messages/devicebound/#"); // devices/FEZ/messages/devicebound/# $aws/things/FEZ/shadow/update 
@@ -56,6 +59,7 @@ namespace AMW007 {
             lock (sender) {
                 string getBytes = "";
                 int messageLength = 0;
+                int serviceMessage = 0;
 
                 getBytes += Convert.ToChar(data[index + 2]);
                 getBytes += Convert.ToChar(data[index + 3]);
@@ -64,12 +68,18 @@ namespace AMW007 {
                 getBytes += Convert.ToChar(data[index + 6]);
 
                 Int32.TryParse(getBytes.ToString(), out messageLength);
+                messageLength += 8; //Magic bytes. Need to investigate
 
-                int serviceMessage = 158;
-                for (var k = serviceMessage; k < messageLength + 8; k++)
-                {
-                    if (data[k] != 0)
-                    {
+                serviceMessage += Encoding.UTF8.GetBytes("2?devices/").Length;
+                serviceMessage += Encoding.UTF8.GetBytes(clientID).Length; // 158 
+                serviceMessage += Encoding.UTF8.GetBytes("/messages/devicebound/").Length;
+                serviceMessage += Encoding.UTF8.GetBytes("%24.mid=3c82d2d6-3417-4c43-bb0a-69aed1bfe7ac&%24.to=%2Fdevices%2F").Length;
+                serviceMessage += Encoding.UTF8.GetBytes(clientID).Length;
+                serviceMessage += Encoding.UTF8.GetBytes("%2Fmessages%2FdeviceBound&iothub-ack=full").Length;
+                serviceMessage += 14; //Magic bytes. Need to investigate
+
+                for (var k = serviceMessage; k < messageLength; k++) {
+                    if (data[k] != 0) {
                         char result = (char)data[k];
                         builder.Append(result);
                     }
