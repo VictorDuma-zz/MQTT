@@ -33,10 +33,9 @@ namespace AMW007 {
             mqtt = new MQTT();
             wifi.Run();
 
-            //wifi.JoinNetwork("GHI", "ghi555wifi.");
-            //wifi.SetTlsServerRootCertificate("azure.pem"); //aws.pem
+          //wifi.SetTlsServerRootCertificate("azure.pem"); //aws.pem
 
-            mqtt.Connect(wifi, host, port, clientID, 60, true, "ghi-test-iot.azure-devices.net/FEZ", "SharedAccessSignature sr=ghi-test-iot.azure-devices.net%2Fdevices%2FFEZ&sig=9ZsecohsA3ZtlROML0BMAO%2BgTEBIigvy7Cj5q34RUFI%3D&se=1560446796"); //, "ghi-test-iot.azure-devices.net/FEZ", "SharedAccessSignature sr=ghi-test-iot.azure-devices.net%2Fdevices%2FFEZ&sig=9ZsecohsA3ZtlROML0BMAO%2BgTEBIigvy7Cj5q34RUFI%3D&se=1560446796"
+            mqtt.Connect(wifi, host, port, clientID, 60, true); //, "ghi-test-iot.azure-devices.net/FEZ", "SharedAccessSignature sr=ghi-test-iot.azure-devices.net%2Fdevices%2FFEZ&sig=9ZsecohsA3ZtlROML0BMAO%2BgTEBIigvy7Cj5q34RUFI%3D&se=1560446796"
             mqtt.Publish("devices/FEZ/messages/events/", "HELLO!"); //devices/FEZ/messages/events/    $aws/things/FEZ/shadow/update
 
             mqtt.Subscribe("devices/FEZ/messages/devicebound/#"); // devices/FEZ/messages/devicebound/# $aws/things/FEZ/shadow/update 
