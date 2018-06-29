@@ -11,7 +11,6 @@ namespace AMW007 {
     class Program {
         static AMW007Interface wifi;
         static MQTT mqtt;
-        static byte[] streamBuffer = new byte[512];
         private static GpioPin led;
         static StringBuilder builder = new StringBuilder();
         static string clientID = "FEZ";
@@ -33,10 +32,10 @@ namespace AMW007 {
             mqtt = new MQTT();
             wifi.Run();
 
-          //wifi.SetTlsServerRootCertificate("azure.pem"); //aws.pem
+            //wifi.SetTlsServerRootCertificate("azure.pem"); //aws.pem
 
-            mqtt.Connect(wifi, host, port, clientID, 60, true); //, "ghi-test-iot.azure-devices.net/FEZ", 
-            mqtt.Publish("devices/FEZ/messages/events/", "HELLO!"); //devices/FEZ/messages/events/    $aws/things/FEZ/shadow/update
+            mqtt.Connect(wifi, host, port, clientID, 60, true); 
+            //mqtt.Publish("devices/FEZ/messages/events/", "HELLO!"); //devices/FEZ/messages/events/    $aws/things/FEZ/shadow/update
 
             mqtt.Subscribe("devices/FEZ/messages/devicebound/#"); // devices/FEZ/messages/devicebound/# $aws/things/FEZ/shadow/update 
 
@@ -45,7 +44,7 @@ namespace AMW007 {
 
             while (true) {
                 wifi.ReadSocket(0, 500);
-                Thread.Sleep(500);
+                Thread.Sleep(200);
             }
         }
 
@@ -53,31 +52,34 @@ namespace AMW007 {
             wifi.DataReceived += Wifi_DataReceived;
         }
 
-        private static void Wifi_DataReceived(object sender, byte[] data, int length, int index) {
+        private static void Wifi_DataReceived(object sender, byte[] data, int length, int indexOffset) {
 
             lock (sender) {
-                string getBytes = "";
+                string expectedBytes = "";
                 int messageLength = 0;
                 int serviceMessage = 0;
+                int clientIDlength = Encoding.UTF8.GetBytes(clientID).Length;
+                int messageID = Encoding.UTF8.GetBytes("test").Length;
 
-                getBytes += Convert.ToChar(data[index + 2]);
-                getBytes += Convert.ToChar(data[index + 3]);
-                getBytes += Convert.ToChar(data[index + 4]);
-                getBytes += Convert.ToChar(data[index + 5]);
-                getBytes += Convert.ToChar(data[index + 6]);
+                expectedBytes += Convert.ToChar(data[indexOffset + 2]);
+                expectedBytes += Convert.ToChar(data[indexOffset + 3]);
+                expectedBytes += Convert.ToChar(data[indexOffset + 4]);
+                expectedBytes += Convert.ToChar(data[indexOffset + 5]);
+                expectedBytes += Convert.ToChar(data[indexOffset + 6]);
 
-                Int32.TryParse(getBytes.ToString(), out messageLength);
-                messageLength += 8; //Magic bytes. Need to investigate
+                Int32.TryParse(expectedBytes.ToString(), out messageLength);
+                messageLength += 6; //Magic bytes. Need to investigate
 
-                serviceMessage += Encoding.UTF8.GetBytes("2?devices/").Length;
-                serviceMessage += Encoding.UTF8.GetBytes(clientID).Length; // 158 
-                serviceMessage += Encoding.UTF8.GetBytes("/messages/devicebound/").Length;
-                serviceMessage += Encoding.UTF8.GetBytes("%24.mid=3c82d2d6-3417-4c43-bb0a-69aed1bfe7ac&%24.to=%2Fdevices%2F").Length;
-                serviceMessage += Encoding.UTF8.GetBytes(clientID).Length;
+                serviceMessage += Encoding.UTF8.GetBytes("2 ").Length; //Sequence number
+                serviceMessage += clientIDlength; 
+                serviceMessage += Encoding.UTF8.GetBytes("devices//messages/devicebound/").Length; // topic name
+                serviceMessage += messageID; // length of message ID. Can spicify or use the default like Encoding.UTF8.GetBytes("3c82d2d6-3417-4c43-bb0a-69aed1bfe7ac").Length;
+                serviceMessage += Encoding.UTF8.GetBytes("%24.mid=&%24.to=%2Fdevices%2F").Length;
+                serviceMessage += clientIDlength;
                 serviceMessage += Encoding.UTF8.GetBytes("%2Fmessages%2FdeviceBound&iothub-ack=full").Length;
-                serviceMessage += 14; //Magic bytes. Need to investigate
+                serviceMessage += 13; //Magic bytes. Need to investigate
 
-                for (var k = serviceMessage; k < messageLength; k++) {
+                for (var k = serviceMessage; k <= messageLength; k++) {
                     if (data[k] != 0) {
                         char result = (char)data[k];
                         builder.Append(result);
@@ -93,7 +95,6 @@ namespace AMW007 {
                 Debug.WriteLine(builder.ToString());
                 builder.Clear();
             }
-
         }
     }
 }

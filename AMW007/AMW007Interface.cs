@@ -1,30 +1,27 @@
 ﻿using System;
-using System.Collections;
 using System.Text;
 using System.Threading;
 using GHIElectronics.TinyCLR.Storage.Streams;
 using GHIElectronics.TinyCLR.Devices.SerialCommunication;
-using GHIElectronics.TinyCLR.Pins;
 using System.Diagnostics;
-using GHIElectronics.TinyCLR.Devices.Gpio;
 using System.IO;
+
 
 namespace AMW007 {
     public class AMW007Interface : IDisposable {
         private readonly SerialDevice serial;
-        public MemoryStream stream;
         private DataWriter serWriter;
         private DataReader serReader;
         private bool connected;
  
         public AMW007Interface(SerialDevice serial) {
             this.serial = serial;
+
          }
 
         public void Run() {
             serReader = new DataReader(serial.InputStream);
             serWriter = new DataWriter(serial.OutputStream);
-            this.stream = new MemoryStream();
 
             Thread reader = new Thread(this.ReadBytes);
             reader.Start();
@@ -71,6 +68,7 @@ namespace AMW007 {
             CloseSocket();
             Thread.Sleep(100);
             this.Write("tlsc " + host + " " + port);
+
             while (connected == false) ;
             Debug.WriteLine("Connected");
         }
@@ -83,29 +81,26 @@ namespace AMW007 {
             if (data == null) throw new ArgumentNullException(nameof(data));
             if (count < 0) throw new ArgumentOutOfRangeException();
             this.WriteData("write 0 " + count.ToString(), data);
+
             Thread.Sleep(200);
         }
 
         public void ReadSocket(int socket, int count) {
-
             this.Write("read " + socket + " " + count);
-            Thread.Sleep(500);
+            Thread.Sleep(200);
 
         }
 
         public event MyHandler DataReceived;
+        public delegate void MyHandler(object sender, byte[] data, int length, int indexOffset);
 
-        public delegate void MyHandler(object sender, byte[] data, int length, int index);
-
-        public void ReadBytes()
-        {
+        public void ReadBytes() {
             var builder = new StringBuilder();
             const int length = 500;
             byte[] buffer = new byte[length];
-            int index = 0;
+            int indexOffset = 0;
 
-            while (true)
-            {
+            while (true) {
                 Thread.Sleep(100);
 
                 var i = serReader.Load(length);
@@ -114,17 +109,16 @@ namespace AMW007 {
                         buffer[j] = serReader.ReadByte();
 
                         if (buffer[j] == 'R')
-                            index = j;
+                            indexOffset = j;
                     }
-
                     //R000003 - means socket is open.
-                    if (buffer[index + 6] == 51) {
+                    if (buffer[indexOffset + 6] == 51) {
                         this.connected = true;
                     }
 
-                    // Amount of bytes
-                    if (buffer[index + 5] != 48) {
-                        DataReceived?.Invoke(this, buffer, length, index);
+                    // Somthing like R000164 - means data ready to reading
+                    if (buffer[indexOffset + 5] != 48) {
+                        DataReceived?.Invoke(this, buffer, length, indexOffset);
                         Array.Clear(buffer, 0, length);
                     }
 
