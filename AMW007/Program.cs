@@ -34,13 +34,11 @@ namespace AMW007 {
 
             //wifi.SetTlsServerRootCertificate("azure.pem"); //aws.pem
 
-            mqtt.Connect(wifi, host, port, clientID, 60, true); 
+            mqtt.Connect(wifi, host, port, clientID, 60, true);
             //mqtt.Publish("devices/FEZ/messages/events/", "HELLO!"); //devices/FEZ/messages/events/    $aws/things/FEZ/shadow/update
 
-            mqtt.Subscribe("devices/FEZ/messages/devicebound/#"); // devices/FEZ/messages/devicebound/# $aws/things/FEZ/shadow/update 
-
-            Thread reader = new Thread(ReadStream);
-            reader.Start();
+            mqtt.Subscribe("devices/FEZ/messages/devicebound/#", "test"); // devices/FEZ/messages/devicebound/# $aws/things/FEZ/shadow/update 
+            mqtt.listen();
 
             while (true) {
                 wifi.ReadSocket(0, 500);
@@ -48,54 +46,7 @@ namespace AMW007 {
             }
         }
 
-        static void ReadStream() {
-            wifi.DataReceived += Wifi_DataReceived;
-        }
 
-        private static void Wifi_DataReceived(object sender, byte[] data, int length, int indexOffset) {
-
-            lock (sender) {
-                string expectedBytes = "";
-                int messageLength = 0;
-                int serviceMessage = 0;
-                int clientIDlength = Encoding.UTF8.GetBytes(clientID).Length;
-                int messageID = Encoding.UTF8.GetBytes("test").Length;
-
-                expectedBytes += Convert.ToChar(data[indexOffset + 2]);
-                expectedBytes += Convert.ToChar(data[indexOffset + 3]);
-                expectedBytes += Convert.ToChar(data[indexOffset + 4]);
-                expectedBytes += Convert.ToChar(data[indexOffset + 5]);
-                expectedBytes += Convert.ToChar(data[indexOffset + 6]);
-
-                Int32.TryParse(expectedBytes.ToString(), out messageLength);
-                messageLength += 6; //Magic bytes. Need to investigate
-
-                serviceMessage += Encoding.UTF8.GetBytes("2 ").Length; //Sequence number
-                serviceMessage += clientIDlength; 
-                serviceMessage += Encoding.UTF8.GetBytes("devices//messages/devicebound/").Length; // topic name
-                serviceMessage += messageID; // length of message ID. Can spicify or use the default like Encoding.UTF8.GetBytes("3c82d2d6-3417-4c43-bb0a-69aed1bfe7ac").Length;
-                serviceMessage += Encoding.UTF8.GetBytes("%24.mid=&%24.to=%2Fdevices%2F").Length;
-                serviceMessage += clientIDlength;
-                serviceMessage += Encoding.UTF8.GetBytes("%2Fmessages%2FdeviceBound&iothub-ack=full").Length;
-                serviceMessage += 13; //Magic bytes. Need to investigate
-
-                for (var k = serviceMessage; k <= messageLength; k++) {
-                    if (data[k] != 0) {
-                        char result = (char)data[k];
-                        builder.Append(result);
-                    }
-                }
-
-                if (builder.ToString().IndexOf("on") != -1)
-                    led.Write(GpioPinValue.High);
-
-                if (builder.ToString().IndexOf("off") != -1)
-                    led.Write(GpioPinValue.Low);
-
-                Debug.WriteLine(builder.ToString());
-                builder.Clear();
-            }
-        }
     }
 }
 

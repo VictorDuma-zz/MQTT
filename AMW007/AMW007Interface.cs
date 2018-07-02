@@ -13,6 +13,7 @@ namespace AMW007 {
         private DataWriter serWriter;
         private DataReader serReader;
         private bool connected;
+        int connectionByte = 51;
  
         public AMW007Interface(SerialDevice serial) {
             this.serial = serial;
@@ -112,14 +113,13 @@ namespace AMW007 {
                             indexOffset = j;
                     }
                     //R000003 - means socket is open.
-                    if (buffer[indexOffset + 6] == 51) {
+                    if (buffer[indexOffset + 6] == connectionByte) {
                         this.connected = true;
                     }
 
                     // Somthing like R000164 - means data ready to reading
-                    if (buffer[indexOffset + 5] != 48) {
+                    if (buffer[indexOffset + 6] > connectionByte) {
                         DataReceived?.Invoke(this, buffer, length, indexOffset);
-                        Array.Clear(buffer, 0, length);
                     }
 
                 }

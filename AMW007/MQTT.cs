@@ -20,9 +20,9 @@ namespace AMW007 {
         internal const byte TYPE_OFFSET = 0x04;
         internal const byte TYPE_SIZE = 0x04;
 
-        internal const byte CONNECT_TYPE = 0x01;
-        internal const byte SUBSCRIBE_TYPE = 0x08;
-        internal const byte PUBLISH_TYPE = 0x30;
+        internal const byte CONNECT = 0x01;
+        internal const byte SUBSCRIBE = 0x08;
+        internal const byte PUBLISH = 0x30;
         internal const string PROTOCOL_NAME = "MQTT";
 
         // variable header fields
@@ -40,10 +40,19 @@ namespace AMW007 {
         internal const byte USERNAME_FLAG_OFFSET = 0x07;
         internal const byte PASSWORD_FLAG_OFFSET = 0x06;
         internal const byte CLEAN_SESSION_FLAG_OFFSET = 0x01;
+
+        internal const int CONNACK = 32;
+        internal const int PUBACK = 64;
+        internal const int SUBACK = 144;
     }
 
     class MQTT {
         private AMW007Interface wifi;
+        public string clientID;
+        public string messageID;
+        private bool connack = false;
+        private bool suback = false;
+        private bool puback = false;
 
         public void Connect(AMW007Interface wifi, string host, int port, string clientID, int keepAlive, bool cleanSession, string username = null, string password = null) {
             int fixedHeaderSize = 0;
@@ -53,6 +62,7 @@ namespace AMW007 {
             byte[] MQTTbuffer;
             int index = 0;
             this.wifi = wifi;
+            this.clientID = clientID;
 
             wifi.OpenSocket(host, port); 
 
@@ -82,7 +92,7 @@ namespace AMW007 {
             } while (temp > 0);
 
             MQTTbuffer = new byte[fixedHeaderSize + varHeaderSize + payloadSize];
-            MQTTbuffer[index++] = (Constants.CONNECT_TYPE << Constants.TYPE_OFFSET) | Constants.CONNECT_FLAG_BITS; // [v.3.1.1] 
+            MQTTbuffer[index++] = (Constants.CONNECT << Constants.TYPE_OFFSET) | Constants.CONNECT_FLAG_BITS;
             index = this.encodeRemainingLength(remainingLength, MQTTbuffer, index);
 
             MQTTbuffer[index++] = 0; // MSB protocol name size 
@@ -120,9 +130,11 @@ namespace AMW007 {
             }
 
             wifi.WriteSocket(0, MQTTbuffer, MQTTbuffer.Length);
-            Thread.Sleep(1000);
+            Thread.Sleep(200);
             wifi.ReadSocket(0, 1000);
-            // TODO implement CannackHandler()
+            Thread.Sleep(1000);
+            //while (connack == false);
+            // TODO implement ConnackHandler()
         }
 
         public void Publish(String topic, String message) {
@@ -160,7 +172,7 @@ namespace AMW007 {
             };
 
             MQTTbuffer = new byte[fixedHeader + varHeader + payload];
-            MQTTbuffer[index++] = Constants.PUBLISH_TYPE;
+            MQTTbuffer[index++] = Constants.PUBLISH;
 
             index = encodeRemainingLength(remainingLength, MQTTbuffer, index);
 
@@ -178,10 +190,11 @@ namespace AMW007 {
             wifi.WriteSocket(0, MQTTbuffer, MQTTbuffer.Length);
             Thread.Sleep(1000);
             wifi.ReadSocket(0, 1000);
+            //while (puback == false) ;
             // TODO implement PubackHandler()
         }
 
-        public void Subscribe(string topic) {
+        public void Subscribe(string topic, string messageID = null) {
             int fixedHeaderSize = 0;
             int varHeaderSize = 0;
             int payloadSize = 0;
@@ -189,6 +202,7 @@ namespace AMW007 {
             byte[] MQTTbuffer;
             int index = 0;
             int qosLevel = 0x01;
+            this.messageID = messageID;
 
             if ((topic == null) || (topic.Length == 0))
                 throw new ArgumentException("Topic error");
@@ -216,7 +230,7 @@ namespace AMW007 {
             } while (temp > 0);
 
             MQTTbuffer = new byte[fixedHeaderSize + varHeaderSize + payloadSize];
-            MQTTbuffer[index++] = (Constants.SUBSCRIBE_TYPE << Constants.TYPE_OFFSET) | Constants.SUBSCRIBE_FLAG_BITS; 
+            MQTTbuffer[index++] = (Constants.SUBSCRIBE << Constants.TYPE_OFFSET) | Constants.SUBSCRIBE_FLAG_BITS; 
 
             index = this.encodeRemainingLength(remainingLength, MQTTbuffer, index);
 
@@ -232,11 +246,26 @@ namespace AMW007 {
             MQTTbuffer[index++] = (byte)qosLevel;
 
             wifi.WriteSocket(0, MQTTbuffer, MQTTbuffer.Length);
-            // TODO implement PubackHandler()
+            //while (suback == false) ;
+            // TODO implement SubackHandler()
         }
 
-        private void ConnackHandler() {
-
+        private void ResponseHandler(byte[] buffer, int indexOffset) {
+            indexOffset += 9; //response from module R000006 and 3-d byte int the buffer 
+            int response = buffer[indexOffset];
+            switch (response) {
+                case Constants.CONNACK:
+                    this.connack = true;
+                    break;
+                case Constants.SUBACK:
+                    this.suback = true;
+                    break;
+                case Constants.PUBACK:
+                    this.puback = true;
+                    break;
+                default:
+                    break;
+            }
         }
 
         private void SubackHandler() {
@@ -246,8 +275,63 @@ namespace AMW007 {
         private void PubackHandler() {
 
         }
+        public void listen() {
+            Thread reader = new Thread(ReadStream);
+            reader.Start();
+        }
 
- 
+        private void ReadStream() {
+            wifi.DataReceived += listen;
+        }
+
+        private void listen(object sender, byte[] buffer, int length, int indexOffset) {
+            lock (sender) {
+                string expectedBytes = "";
+                int messageLength = 0;
+
+                expectedBytes += Convert.ToChar(buffer[indexOffset + 2]);
+                expectedBytes += Convert.ToChar(buffer[indexOffset + 3]);
+                expectedBytes += Convert.ToChar(buffer[indexOffset + 4]);
+                expectedBytes += Convert.ToChar(buffer[indexOffset + 5]);
+                expectedBytes += Convert.ToChar(buffer[indexOffset + 6]);
+                Int32.TryParse(expectedBytes.ToString(), out messageLength);
+
+                if (messageLength > 50)
+                    ReadMessage(buffer, messageLength, this.clientID, this.messageID);
+                else
+                    ResponseHandler(buffer, indexOffset);
+            }
+        }
+
+        public string ReadMessage(byte [] data, int messageLength, string clientID, string messageID = null) {
+            StringBuilder builder = new StringBuilder();
+
+            int serviceMessage = 0;
+
+            int clientIDlength = Encoding.UTF8.GetBytes(clientID).Length;
+            int messageIDlength = (messageID != null)? Encoding.UTF8.GetBytes(messageID).Length : Encoding.UTF8.GetBytes("3c82d2d6-3417-4c43-bb0a-69aed1bfe7ac").Length;
+            messageLength += 6; //Magic bytes. Need to investigate
+
+            serviceMessage += Encoding.UTF8.GetBytes("2 ").Length; //Sequence number
+            serviceMessage += clientIDlength;
+            serviceMessage += Encoding.UTF8.GetBytes("devices//messages/devicebound/").Length; // topic name
+            serviceMessage += messageIDlength; // length of message ID. Can spicify or use the default like Encoding.UTF8.GetBytes("3c82d2d6-3417-4c43-bb0a-69aed1bfe7ac").Length;
+            serviceMessage += Encoding.UTF8.GetBytes("%24.mid=&%24.to=%2Fdevices%2F").Length;
+            serviceMessage += clientIDlength;
+            serviceMessage += Encoding.UTF8.GetBytes("%2Fmessages%2FdeviceBound&iothub-ack=full").Length;
+            serviceMessage += 13; //Magic bytes. Need to investigate
+
+            for (var k = serviceMessage; k <= messageLength; k++) {
+                if (data[k] != 0) {
+                    char result = (char)data[k];
+                    builder.Append(result);
+                }
+            }
+            Debug.WriteLine(builder.ToString());
+            builder.Clear();
+
+            return builder.ToString();
+        }
 
         protected int encodeRemainingLength(int remainingLength, byte[] buffer, int index) {
             int digit = 0;
