@@ -17,7 +17,6 @@ namespace AMW007 {
 
         public AMW007Interface(SerialDevice serial) {
             this.serial = serial;
-
          }
 
         public void Run() {

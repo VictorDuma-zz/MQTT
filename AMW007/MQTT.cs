@@ -113,8 +113,8 @@ namespace AMW007 {
             MQTTbuffer[index++] = (byte)(keepAlive / 256); // MSB 
             MQTTbuffer[index++] = (byte)(keepAlive % 256); // LSB 
 
-            MQTTbuffer[index++] = (byte)((clientIdUtf8.Length >> 8) & 0x00FF); // MSB 
-            MQTTbuffer[index++] = (byte)(clientIdUtf8.Length & 0x00FF); // LSB 
+            MQTTbuffer[index++] = (byte)(clientIdUtf8.Length / 256); // MSB 
+            MQTTbuffer[index++] = (byte)(clientIdUtf8.Length % 256); // LSB 
             Array.Copy(clientIdUtf8, 0, MQTTbuffer, index, clientIdUtf8.Length);
             index += clientIdUtf8.Length;
 
@@ -258,11 +258,9 @@ namespace AMW007 {
             // TODO implement SubackHandler()
         }
 
-
         private void ReadStream() {
             wifi.MessageRecieved += ResponseHandler;
         }
-
 
         private void ResponseHandler(object sender, byte[] messageMuffer) {
             lock (sender) {
