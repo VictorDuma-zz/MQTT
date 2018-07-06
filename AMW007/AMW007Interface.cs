@@ -14,7 +14,7 @@ namespace AMW007 {
         private DataReader serReader;
         private bool connected;
         int connectionByte = 51;
- 
+
         public AMW007Interface(SerialDevice serial) {
             this.serial = serial;
 
@@ -66,7 +66,7 @@ namespace AMW007 {
         }
 
         public void OpenSocket(string host, int port) {
-            CloseSocket();
+            this.Write("close all");
             Thread.Sleep(100);
             this.Write("tlsc " + host + " " + port);
 
@@ -76,6 +76,7 @@ namespace AMW007 {
 
         public void CloseSocket() {
             this.Write("close all");
+            Dispose();
         }
 
         public void WriteSocket(int socket, byte[] data, int count) {
@@ -92,17 +93,22 @@ namespace AMW007 {
 
         }
 
-        public event MyHandler DataReceived;
-        public delegate void MyHandler(object sender, byte[] data, int length, int indexOffset);
+        public event DataReceivedEventHandler DataReceived;
+        public event MessageReceivedEventHandler MessageRecieved;
+
+        public delegate void DataReceivedEventHandler(object sender, byte[] buffer, int length, int indexOffset);
+        public delegate void MessageReceivedEventHandler(object sender, byte[] messageMuffer);
+
 
         public void ReadBytes() {
             var builder = new StringBuilder();
             const int length = 500;
             byte[] buffer = new byte[length];
+            byte[] messageMuffer = new byte[4];
             int indexOffset = 0;
 
             while (true) {
-                Thread.Sleep(100);
+                Thread.Sleep(300);
 
                 var i = serReader.Load(length);
                 if (i != 0) {
@@ -117,8 +123,13 @@ namespace AMW007 {
                         this.connected = true;
                     }
 
+                    if (buffer[indexOffset + 5] == 48 && buffer[indexOffset + 6] > connectionByte) {
+                        Array.Copy(buffer, indexOffset + 7, messageMuffer, 0, 4);
+                        MessageRecieved?.Invoke(this, messageMuffer);
+                    }
+
                     // Somthing like R000164 - means data ready to reading
-                    if (buffer[indexOffset + 6] > connectionByte) {
+                    if (buffer[indexOffset + 5] != 48) {
                         DataReceived?.Invoke(this, buffer, length, indexOffset);
                     }
 

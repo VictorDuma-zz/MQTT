@@ -64,7 +64,10 @@ namespace AMW007 {
             this.wifi = wifi;
             this.clientID = clientID;
 
-            wifi.OpenSocket(host, port); 
+            wifi.OpenSocket(host, port);
+
+            Thread reader = new Thread(ReadStream);
+            reader.Start();
 
             byte[] clientIdUtf8 = Encoding.UTF8.GetBytes(clientID);
             byte[] usernameUtf8 = ((username != null) && (username.Length > 0)) ? Encoding.UTF8.GetBytes(username) : null;
@@ -129,15 +132,16 @@ namespace AMW007 {
                 index += passwordUtf8.Length;
             }
 
-            wifi.WriteSocket(0, MQTTbuffer, MQTTbuffer.Length);
-            Thread.Sleep(200);
-            wifi.ReadSocket(0, 1000);
-            Thread.Sleep(1000);
-            //while (connack == false);
+            do
+            {
+                wifi.WriteSocket(0, MQTTbuffer, MQTTbuffer.Length);
+                Thread.Sleep(500);
+                wifi.ReadSocket(0, 1000);
+            } while (connack == false);
             // TODO implement ConnackHandler()
         }
 
-        public void Publish(String topic, String message) {
+        public void Publish(string topic, string message) {
             int index = 0;
             int tmp = 0;
             int fixedHeader = 0;
@@ -188,9 +192,9 @@ namespace AMW007 {
             }
 
             wifi.WriteSocket(0, MQTTbuffer, MQTTbuffer.Length);
-            Thread.Sleep(1000);
+            Thread.Sleep(200);
             wifi.ReadSocket(0, 1000);
-            //while (puback == false) ;
+            //while (puback == false);
             // TODO implement PubackHandler()
         }
 
@@ -245,26 +249,37 @@ namespace AMW007 {
 
             MQTTbuffer[index++] = (byte)qosLevel;
 
-            wifi.WriteSocket(0, MQTTbuffer, MQTTbuffer.Length);
-            //while (suback == false) ;
+            do
+            {
+                wifi.WriteSocket(0, MQTTbuffer, MQTTbuffer.Length);
+                Thread.Sleep(500);
+                wifi.ReadSocket(0, 1000);
+            } while (suback == false);
             // TODO implement SubackHandler()
         }
 
-        private void ResponseHandler(byte[] buffer, int indexOffset) {
-            indexOffset += 9; //response from module R000006 and 3-d byte int the buffer 
-            int response = buffer[indexOffset];
-            switch (response) {
-                case Constants.CONNACK:
-                    this.connack = true;
-                    break;
-                case Constants.SUBACK:
-                    this.suback = true;
-                    break;
-                case Constants.PUBACK:
-                    this.puback = true;
-                    break;
-                default:
-                    break;
+
+        private void ReadStream() {
+            wifi.MessageRecieved += ResponseHandler;
+        }
+
+
+        private void ResponseHandler(object sender, byte[] messageMuffer) {
+            lock (sender) {
+                int response = messageMuffer[2];
+                switch (response) {
+                    case Constants.CONNACK:
+                        this.connack = true;
+                        break;
+                    case Constants.SUBACK:
+                        this.suback = true;
+                        break;
+                    case Constants.PUBACK:
+                        this.puback = true;
+                        break;
+                    default:
+                        break;
+                }
             }
         }
 
@@ -274,63 +289,6 @@ namespace AMW007 {
 
         private void PubackHandler() {
 
-        }
-        public void listen() {
-            Thread reader = new Thread(ReadStream);
-            reader.Start();
-        }
-
-        private void ReadStream() {
-            wifi.DataReceived += listen;
-        }
-
-        private void listen(object sender, byte[] buffer, int length, int indexOffset) {
-            lock (sender) {
-                string expectedBytes = "";
-                int messageLength = 0;
-
-                expectedBytes += Convert.ToChar(buffer[indexOffset + 2]);
-                expectedBytes += Convert.ToChar(buffer[indexOffset + 3]);
-                expectedBytes += Convert.ToChar(buffer[indexOffset + 4]);
-                expectedBytes += Convert.ToChar(buffer[indexOffset + 5]);
-                expectedBytes += Convert.ToChar(buffer[indexOffset + 6]);
-                Int32.TryParse(expectedBytes.ToString(), out messageLength);
-
-                if (messageLength > 50)
-                    ReadMessage(buffer, messageLength, this.clientID, this.messageID);
-                else
-                    ResponseHandler(buffer, indexOffset);
-            }
-        }
-
-        public string ReadMessage(byte [] data, int messageLength, string clientID, string messageID = null) {
-            StringBuilder builder = new StringBuilder();
-
-            int serviceMessage = 0;
-
-            int clientIDlength = Encoding.UTF8.GetBytes(clientID).Length;
-            int messageIDlength = (messageID != null)? Encoding.UTF8.GetBytes(messageID).Length : Encoding.UTF8.GetBytes("3c82d2d6-3417-4c43-bb0a-69aed1bfe7ac").Length;
-            messageLength += 6; //Magic bytes. Need to investigate
-
-            serviceMessage += Encoding.UTF8.GetBytes("2 ").Length; //Sequence number
-            serviceMessage += clientIDlength;
-            serviceMessage += Encoding.UTF8.GetBytes("devices//messages/devicebound/").Length; // topic name
-            serviceMessage += messageIDlength; // length of message ID. Can spicify or use the default like Encoding.UTF8.GetBytes("3c82d2d6-3417-4c43-bb0a-69aed1bfe7ac").Length;
-            serviceMessage += Encoding.UTF8.GetBytes("%24.mid=&%24.to=%2Fdevices%2F").Length;
-            serviceMessage += clientIDlength;
-            serviceMessage += Encoding.UTF8.GetBytes("%2Fmessages%2FdeviceBound&iothub-ack=full").Length;
-            serviceMessage += 13; //Magic bytes. Need to investigate
-
-            for (var k = serviceMessage; k <= messageLength; k++) {
-                if (data[k] != 0) {
-                    char result = (char)data[k];
-                    builder.Append(result);
-                }
-            }
-            Debug.WriteLine(builder.ToString());
-            builder.Clear();
-
-            return builder.ToString();
         }
 
         protected int encodeRemainingLength(int remainingLength, byte[] buffer, int index) {
