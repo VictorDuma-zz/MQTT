@@ -33,7 +33,6 @@ namespace AMW007 {
             mqtt = new MQTT();
             wifi.Run();
 
-
             //wifi.SetTlsServerRootCertificate("azure.pem"); //aws.pem
 
             mqtt.Connect(wifi, host, port, clientID, 60, true);
@@ -88,6 +87,12 @@ namespace AMW007 {
                         builder.Append(result);
                     }
                 }
+                if (builder.ToString().IndexOf("on") != -1)
+                    led.Write(GpioPinValue.High);
+
+                if (builder.ToString().IndexOf("off") != -1)
+                    led.Write(GpioPinValue.Low);
+
                 Debug.WriteLine(builder.ToString());
                 builder.Clear();
             }

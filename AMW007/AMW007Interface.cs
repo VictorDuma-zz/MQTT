@@ -96,14 +96,14 @@ namespace AMW007 {
         public event MessageReceivedEventHandler MessageRecieved;
 
         public delegate void DataReceivedEventHandler(object sender, byte[] buffer, int length, int indexOffset);
-        public delegate void MessageReceivedEventHandler(object sender, byte[] messageMuffer);
+        public delegate void MessageReceivedEventHandler(object sender, byte[] messageBuffer);
 
 
         public void ReadBytes() {
             var builder = new StringBuilder();
             const int length = 500;
             byte[] buffer = new byte[length];
-            byte[] messageMuffer = new byte[4];
+            byte[] messageBuffer = new byte[3];
             int indexOffset = 0;
 
             while (true) {
@@ -123,8 +123,8 @@ namespace AMW007 {
                     }
 
                     if (buffer[indexOffset + 5] == 48 && buffer[indexOffset + 6] > connectionByte) {
-                        Array.Copy(buffer, indexOffset + 7, messageMuffer, 0, 4);
-                        MessageRecieved?.Invoke(this, messageMuffer);
+                        Array.Copy(buffer, indexOffset + 7, messageBuffer, 0, 3); //Data after R000006 module response
+                        MessageRecieved?.Invoke(this, messageBuffer);
                     }
 
                     // Somthing like R000164 - means data ready to reading
